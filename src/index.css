@@ -1,0 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body, #root { height: 100%; }
+  body {
+    @apply bg-chalk text-charcoal font-sans antialiased transition-colors duration-500;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .dark body { @apply bg-obsidian text-warm; }
+  ::selection { background: rgba(217, 196, 172, 0.5); }
+}
+
+@layer components {
+  .glass {
+    @apply bg-white/55 backdrop-blur-2xl border border-white/70 shadow-glass;
+  }
+  .dark .glass {
+    @apply bg-gravel/60 border-white/[0.06];
+  }
+  .glass-soft {
+    @apply bg-white/40 backdrop-blur-xl border border-black/[0.04];
+  }
+  .dark .glass-soft {
+    @apply bg-white/[0.03] border-white/[0.05];
+  }
+  .field {
+    @apply w-full rounded-xl px-3.5 py-2.5 text-sm outline-none transition
+      bg-white/70 border border-black/[0.06] placeholder:text-charcoal/40
+      focus:border-milk-400 focus:ring-4 focus:ring-milk-300/30;
+  }
+  .dark .field {
+    @apply bg-white/[0.04] border-white/[0.08] placeholder:text-warm/30 focus:border-milk-400/60 focus:ring-milk-400/10;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
+  }
+  .btn-primary { @apply btn bg-charcoal text-chalk hover:bg-charcoal/90; }
+  .dark .btn-primary { @apply bg-warm text-obsidian hover:bg-white; }
+  .btn-ghost { @apply btn bg-black/[0.04] hover:bg-black/[0.07]; }
+  .dark .btn-ghost { @apply bg-white/[0.05] hover:bg-white/[0.09]; }
+  .icon-btn {
+    @apply inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition hover:bg-black/[0.06] active:scale-95;
+  }
+  .dark .icon-btn { @apply hover:bg-white/[0.08]; }
+  .muted { @apply text-charcoal/55; }
+  .dark .muted { @apply text-warm/50; }
+  .label { @apply text-[11px] font-semibold uppercase tracking-[0.14em] text-charcoal/45; }
+  .dark .label { @apply text-warm/40; }
+}
+
+/* thin scrollbars */
+.scroll-thin { scrollbar-width: thin; scrollbar-color: rgba(127,127,127,.3) transparent; }
+
+/* range input */
+input[type='range'].slider {
+  -webkit-appearance: none; appearance: none; height: 4px; border-radius: 999px; cursor: pointer;
+  background: linear-gradient(to right, var(--fill, #1E1E24) var(--pct, 0%), rgba(127,127,127,.22) var(--pct, 0%));
+}
+input[type='range'].slider::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--fill, #1E1E24);
+  box-shadow: 0 1px 4px rgba(0,0,0,.25); transition: transform .15s;
+}
+input[type='range'].slider:hover::-webkit-slider-thumb { transform: scale(1.2); }
+input[type='range'].slider::-moz-range-thumb { width: 14px; height: 14px; border: 0; border-radius: 50%; background: var(--fill, #1E1E24); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
