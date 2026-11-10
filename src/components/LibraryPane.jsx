@@ -1,4 +1,11 @@
-import { useState } from 'react';
+import { memo, useRef, useState } from 'react';
+
+/** Always-current handlers for memoised rows, so a row that skipped re-rendering never calls a stale callback. */
+function useLatest(value) {
+  const ref = useRef(value);
+  ref.current = value;
+  return ref;
+}
 import { fetchPlaylist, fetchVideoMeta, parseYouTubeUrl, searchVideos } from '../lib/youtube.js';
 import { IconCheck, IconKey, IconLink, IconPlay, IconPlus, IconQueue, IconSearch, IconTrash, IconX } from './Icons.jsx';
 
@@ -17,7 +24,15 @@ function Bars() {
   );
 }
 
-function TrackRow({ track, index, current, playing, onPlay, action }) {
+// Rows only re-render when what they show changes (not on every playback tick).
+// `actionKey` must change whenever the `action` element would look different.
+const TrackRow = memo(
+  TrackRowImpl,
+  (a, b) =>
+    a.track === b.track && a.index === b.index && a.current === b.current && a.playing === b.playing && a.actionKey === b.actionKey
+);
+
+function TrackRowImpl({ track, index, current, playing, onPlay, action }) {
   return (
     <div
       className={`group flex items-center gap-3 rounded-2xl p-2 pr-2.5 transition ${
@@ -66,6 +81,7 @@ function SearchHub({ onQueue, apiKey, oauthToken, onOpenApi, onAdd, onPlayList, 
   const [error, setError] = useState('');
   const [added, setAdded] = useState(() => new Set());
   const isLink = !!parseYouTubeUrl(q);
+  const h = useLatest({ onQueue, onPlayList, results });
 
   const run = async (e) => {
     e?.preventDefault();
@@ -196,10 +212,12 @@ function SearchHub({ onQueue, apiKey, oauthToken, onOpenApi, onAdd, onPlayList, 
                 <TrackRow
                   key={t.videoId + i}
                   track={t}
-                  onPlay={() => onPlayList(results, i)}
+                  index={undefined}
+                  actionKey={done}
+                  onPlay={() => h.current.onPlayList(h.current.results, i)}
                   action={
                     <div className="flex shrink-0 items-center gap-1">
-                    {onQueue && <QueueButton onClick={() => onQueue([t])} title={t.title} />}
+                    {onQueue && <QueueButton onClick={() => h.current.onQueue([t])} title={t.title} />}
                     <button
                       onClick={() => add(t)}
                       disabled={done}
@@ -244,6 +262,7 @@ export default function LibraryPane({
 }) {
   const existingIds = new Set(folder.tracks.map((t) => t.videoId));
   const [tab, setTab] = useState('shelf');
+  const h = useLatest({ onPlayFolder, onQueue, onRemove });
   const tabs = [
     ['shelf', 'Shelf'],
     queuePanel && ['queue', queueCount ? `Queue · ${queueCount}` : 'Queue'],
@@ -326,13 +345,14 @@ export default function LibraryPane({
               index={i}
               current={t.videoId === currentVideoId}
               playing={isPlaying}
-              onPlay={() => onPlayFolder(i)}
+              actionKey={!!onQueue}
+              onPlay={() => h.current.onPlayFolder(i)}
               action={
                 <div className="flex shrink-0 items-center opacity-100 transition lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100">
-                  {onQueue && <QueueButton onClick={() => onQueue([t])} title={t.title} />}
+                  {onQueue && <QueueButton onClick={() => h.current.onQueue([t])} title={t.title} />}
                   <button
                     className="icon-btn h-8 w-8 muted"
-                    onClick={() => onRemove(t.id)}
+                    onClick={() => h.current.onRemove(t.id)}
                     aria-label={`Remove ${t.title}`}
                   >
                     <IconTrash size={15} />

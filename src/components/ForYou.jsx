@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   RECS_TTL,
   fetchDiscovery,
@@ -12,7 +12,13 @@ import { IconCheck, IconDisc, IconKey, IconPlay, IconPlus, IconQueue, IconRepeat
 
 const inflight = new Map();
 
-function Card({ track, current, playing, added, onPlay, onAdd, onQueue }) {
+// Cards skip re-rendering on playback ticks; their handlers read the latest props via a ref.
+const Card = memo(
+  CardImpl,
+  (a, b) => a.track === b.track && a.current === b.current && a.playing === b.playing && a.added === b.added
+);
+
+function CardImpl({ track, current, playing, added, onPlay, onAdd, onQueue }) {
   return (
     <div className="group w-[132px] shrink-0 snap-start">
       <div className="relative aspect-square overflow-hidden rounded-2xl bg-black/5 shadow-sm dark:bg-white/5">
@@ -78,9 +84,9 @@ function Row({ title, subtitle, tracks, ...rest }) {
             current={t.videoId === rest.currentVideoId}
             playing={rest.isPlaying}
             added={rest.shelfIds.has(t.videoId)}
-            onPlay={() => rest.onPlayList(tracks, i)}
-            onAdd={() => rest.onAdd([t])}
-            onQueue={rest.onQueue ? () => rest.onQueue([t]) : undefined}
+            onPlay={() => rest.latest.current.onPlayList(tracks, i)}
+            onAdd={() => rest.latest.current.onAdd([t])}
+            onQueue={rest.onQueue ? () => rest.latest.current.onQueue([t]) : undefined}
           />
         ))}
       </div>
@@ -134,7 +140,9 @@ export default function ForYou({ history, store, apiKey, knownIds, shelfIds, onO
     refresh(false);
   }, [refresh]);
 
-  const rowProps = { currentVideoId, isPlaying, shelfIds, onPlayList, onAdd, onQueue };
+  const latest = useRef();
+  latest.current = { onPlayList, onAdd, onQueue };
+  const rowProps = { currentVideoId, isPlaying, shelfIds, onPlayList, onAdd, onQueue, latest };
 
   if (!plays) {
     return (

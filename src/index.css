@@ -13,11 +13,23 @@
 }
 
 @layer components {
+  /* Frosted glass. A 16px blur reads almost the same as 40px over a soft background but
+     costs a fraction as much; panels are also a touch more opaque so less blur is needed. */
   .glass {
-    @apply bg-white/55 backdrop-blur-2xl border border-white/70 shadow-glass;
+    @apply bg-white/65 backdrop-blur-lg border border-white/70 shadow-glass;
   }
   .dark .glass {
-    @apply bg-gravel/60 border-white/[0.06];
+    @apply bg-gravel/70 border-white/[0.06];
+  }
+  /* Phones / tablets: skip backdrop blur entirely; solid translucent panels look nearly
+     identical and save the GPU for the spinning record. */
+  @media (pointer: coarse) {
+    .glass {
+      @apply backdrop-blur-none bg-white/80;
+    }
+    .dark .glass {
+      @apply bg-gravel/90;
+    }
   }
   .glass-soft {
     @apply bg-white/40 backdrop-blur-xl border border-black/[0.04];

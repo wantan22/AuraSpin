@@ -361,7 +361,7 @@ export default function Dashboard({ user, dark, onToggleTheme, onRemoteTheme, on
       const shimmer = Math.sin(2 * Math.PI * t * 1.7); // quicker, smaller
       const dip = 0.16 * (0.5 + 0.5 * (0.8 * wow + 0.2 * shimmer)); // 0 … 16% quieter
       setVolumeRaw(baseVolume * (1 - dip));
-    }, 80);
+    }, 120);
     return () => {
       clearInterval(id);
       setVolumeRaw(baseVolume);
@@ -592,7 +592,7 @@ export default function Dashboard({ user, dark, onToggleTheme, onRemoteTheme, on
         <div className="grid h-[100dvh] grid-cols-[272px_minmax(340px,420px)_1fr] gap-4 p-4 pt-[max(1rem,env(safe-area-inset-top))]">
           <aside className="glass min-h-0 overflow-hidden rounded-[28px]">{nav(false)}</aside>
           <section className="glass min-h-0 overflow-hidden rounded-[28px]">{libraryPane(false)}</section>
-          <main className="flex min-h-0 items-center justify-center overflow-y-auto px-6 py-6">{stage}</main>
+          <main className="flex min-h-0 items-center justify-center overflow-y-auto overflow-x-hidden px-6 py-6">{stage}</main>
         </div>
       )}
 

@@ -95,7 +95,7 @@ export default function Turntable({
         <>
           {/* Ambient glow behind the record base */}
           <div
-            className="pointer-events-none absolute left-[46%] top-[48%] h-[95%] w-[95%] -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl transition-[background] duration-1000"
+            className="pointer-events-none absolute left-[46%] top-[48%] h-[95%] w-[95%] -translate-x-1/2 -translate-y-1/2 rounded-full transition-[background] duration-1000"
             style={{
               background: `radial-gradient(circle, ${css(glow, dark ? 0.55 : 0.9)} 0%, ${css(
                 dark ? smoky(c2) : pastel(c2),
@@ -117,7 +117,7 @@ export default function Turntable({
         className="group absolute left-[6%] top-[8%] h-[80%] w-[80%] rounded-full outline-none focus-visible:ring-4 focus-visible:ring-milk-300/50"
       >
         <div
-          className={`absolute inset-0 animate-warp rounded-full transition-[background-color] duration-1000 ${
+          className={`absolute inset-0 animate-warp rounded-full will-change-transform transition-[background-color] duration-1000 ${
             classic
               ? 'shadow-[0_40px_70px_-20px_rgba(0,0,0,0.7),0_0_0_1px_rgba(255,255,255,0.06)_inset]'
               : 'shadow-[0_30px_60px_-20px_rgba(0,0,0,0.55),0_0_0_1px_rgba(255,255,255,0.08)_inset]'
@@ -125,16 +125,16 @@ export default function Turntable({
           style={{
             ...(classic
               ? { backgroundColor: css(discColor) }
-              : { backgroundColor: css(tone, dark ? 0.86 : 0.8), backdropFilter: 'blur(6px)' }),
+              : { backgroundColor: css(tone, dark ? 0.86 : 0.8) }),
             animationPlayState: play,
           }}
         >
           {/* Wow (slow speed waver per revolution) → flutter (fast jitter) → steady spin */}
-          <div className="absolute inset-0 animate-wow rounded-full" style={{ animationPlayState: play }}>
-          <div className="absolute inset-0 animate-flutter rounded-full" style={{ animationPlayState: play }}>
+          <div className="absolute inset-0 animate-wow rounded-full will-change-transform" style={{ animationPlayState: play }}>
+          <div className="absolute inset-0 animate-flutter rounded-full will-change-transform" style={{ animationPlayState: play }}>
           {/* Spinning body */}
           <div
-            className="absolute inset-0 animate-spin-record rounded-full"
+            className="absolute inset-0 animate-spin-record rounded-full will-change-transform"
             style={{ animationPlayState: play }}
           >
             {/* depth + translucent edge */}
@@ -150,7 +150,7 @@ export default function Turntable({
             {/* fine grooves */}
             <div
               className={`absolute inset-[3%] rounded-full ${
-                classic ? '' : 'opacity-70 mix-blend-multiply dark:mix-blend-normal dark:opacity-60'
+                classic ? '' : 'opacity-50 dark:opacity-60'
               }`}
               style={{
                 background: classic
@@ -170,7 +170,7 @@ export default function Turntable({
             ))}
             {/* coloured iridescence sweep (rotates with the disc so motion reads) */}
             <div
-              className={`absolute inset-0 rounded-full mix-blend-soft-light ${classic ? 'opacity-25' : 'opacity-40'}`}
+              className={`absolute inset-0 rounded-full ${classic ? 'opacity-[0.12]' : 'opacity-20'}`}
               style={{
                 background: `conic-gradient(from 20deg, transparent 0 8%, ${css(c3, 0.9)} 14%, transparent 22% 55%, ${css(
                   c2,
@@ -266,7 +266,7 @@ export default function Turntable({
           transformOrigin: '50% 8.1%',
           transform: `rotate(${armAngle}deg)`,
           transition: dragging ? 'none' : 'transform 0.95s cubic-bezier(.45,.05,.2,1)',
-          filter: 'drop-shadow(4px 8px 6px rgba(0,0,0,0.3))',
+
         }}
       >
         {/* stylus riding the warp: a tiny bob while the needle is in the groove */}
@@ -286,6 +286,11 @@ export default function Turntable({
               <stop offset="1" stopColor={dark ? '#3f3f46' : '#46464f'} />
             </linearGradient>
           </defs>
+          {/* soft shadow drawn as plain shapes (a CSS drop-shadow filter re-rendered every frame) */}
+          <g transform="translate(5 10)" opacity={dark ? 0.35 : 0.18} fill="none" stroke="#000" strokeLinecap="round">
+            <path d="M60 60 L60 560 Q60 610 44 640" strokeWidth="16" />
+            <path d="M44 640 L36 705" strokeWidth="30" />
+          </g>
           {/* counterweight */}
           <rect x="38" y="2" width="44" height="36" rx="9" fill="url(#arm-head)" />
           <rect x="44" y="34" width="32" height="14" rx="4" fill="url(#arm-metal)" />

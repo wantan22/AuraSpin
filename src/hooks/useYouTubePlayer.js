@@ -109,7 +109,8 @@ export function useYouTubePlayer({ onEnded, onError, initialVolume = 80 } = {}) 
     };
     tick();
     const active = ytState === YTS.PLAYING || ytState === YTS.BUFFERING;
-    const id = setInterval(tick, active ? 250 : 1000);
+    // 2 updates/sec is smooth enough for a progress bar and halves re-render work.
+    const id = setInterval(tick, active ? 500 : 1000);
     return () => clearInterval(id);
   }, [ready, ytState]);
 
