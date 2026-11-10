@@ -28,6 +28,8 @@ export default function PlayerControls({
   onVolume,
   onShuffle,
   onRepeat,
+  wobble = false,
+  onWobble,
   compact = false,
 }) {
   const [scrub, setScrub] = useState(null);
@@ -120,7 +122,7 @@ export default function PlayerControls({
       </div>
 
       {/* volume */}
-      <div className={`mx-auto flex max-w-[240px] items-center gap-2.5 ${compact ? 'mt-3' : 'mt-5'}`}>
+      <div className={`mx-auto flex max-w-[300px] items-center gap-2.5 ${compact ? 'mt-3' : 'mt-5'}`}>
         <button
           className="icon-btn h-7 w-7 muted"
           onClick={() => onVolume(volume > 0 ? 0 : 70)}
@@ -138,6 +140,22 @@ export default function PlayerControls({
           onChange={(e) => onVolume(Number(e.target.value))}
           aria-label="Volume"
         />
+        {onWobble && (
+          <button
+            onClick={onWobble}
+            aria-pressed={wobble}
+            title="Vinyl wobble: wow & flutter tremolo"
+            className={`ml-1 flex h-7 shrink-0 items-center gap-1 rounded-full px-2 text-[10px] font-bold uppercase tracking-wider transition ${
+              wobble ? '' : 'opacity-45 hover:opacity-80'
+            }`}
+            style={wobble ? { color: fill, background: css(accentColor, 0.14) } : undefined}
+          >
+            <svg width="16" height="10" viewBox="0 0 16 10" fill="none" aria-hidden>
+              <path d="M1 5c1.5-3.5 3-3.5 4.5 0s3 3.5 4.5 0 3-3.5 4.5 0" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+            </svg>
+            Wow
+          </button>
+        )}
       </div>
     </div>
   );

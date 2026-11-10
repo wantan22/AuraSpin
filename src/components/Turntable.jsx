@@ -83,6 +83,7 @@ export default function Turntable({
     else if (spinning) onArmLift?.();
   };
   const dragging = dragAngle !== null;
+  const play = spinning ? 'running' : 'paused';
 
   return (
     <div
@@ -116,21 +117,25 @@ export default function Turntable({
         className="group absolute left-[6%] top-[8%] h-[80%] w-[80%] rounded-full outline-none focus-visible:ring-4 focus-visible:ring-milk-300/50"
       >
         <div
-          className={`absolute inset-0 rounded-full transition-[background-color] duration-1000 ${
+          className={`absolute inset-0 animate-warp rounded-full transition-[background-color] duration-1000 ${
             classic
               ? 'shadow-[0_40px_70px_-20px_rgba(0,0,0,0.7),0_0_0_1px_rgba(255,255,255,0.06)_inset]'
               : 'shadow-[0_30px_60px_-20px_rgba(0,0,0,0.55),0_0_0_1px_rgba(255,255,255,0.08)_inset]'
           }`}
-          style={
-            classic
+          style={{
+            ...(classic
               ? { backgroundColor: css(discColor) }
-              : { backgroundColor: css(tone, dark ? 0.86 : 0.8), backdropFilter: 'blur(6px)' }
-          }
+              : { backgroundColor: css(tone, dark ? 0.86 : 0.8), backdropFilter: 'blur(6px)' }),
+            animationPlayState: play,
+          }}
         >
+          {/* Wow (slow speed waver per revolution) → flutter (fast jitter) → steady spin */}
+          <div className="absolute inset-0 animate-wow rounded-full" style={{ animationPlayState: play }}>
+          <div className="absolute inset-0 animate-flutter rounded-full" style={{ animationPlayState: play }}>
           {/* Spinning body */}
           <div
             className="absolute inset-0 animate-spin-record rounded-full"
-            style={{ animationPlayState: spinning ? 'running' : 'paused' }}
+            style={{ animationPlayState: play }}
           >
             {/* depth + translucent edge */}
             <div
@@ -216,6 +221,8 @@ export default function Turntable({
               <div className="absolute inset-0 rounded-full ring-1 ring-inset ring-white/20" />
             </div>
           </div>
+          </div>
+          </div>
 
           {/* Static glossy reflections (do not rotate, like light on a real record) */}
           <div
@@ -262,6 +269,11 @@ export default function Turntable({
           filter: 'drop-shadow(4px 8px 6px rgba(0,0,0,0.3))',
         }}
       >
+        {/* stylus riding the warp: a tiny bob while the needle is in the groove */}
+        <div
+          className="h-full w-full animate-armbob"
+          style={{ transformOrigin: '50% 8.1%', animationPlayState: spinning && !dragging ? 'running' : 'paused' }}
+        >
         <svg viewBox="0 0 120 740" className="h-full w-full overflow-visible">
           <defs>
             <linearGradient id="arm-metal" x1="0" x2="1">
@@ -311,6 +323,7 @@ export default function Turntable({
             <title>Drag the needle onto the record to play — where you drop it sets the position</title>
           </path>
         </svg>
+        </div>
       </div>
     </div>
   );

@@ -30,12 +30,42 @@ export default {
           '50%': { boxShadow: '0 0 0 3px rgba(255,214,170,1), 0 0 44px 14px rgba(255,190,130,0.75)' },
         },
         rise: { from: { opacity: 0, transform: 'translateY(8px)' }, to: { opacity: 1, transform: 'none' } },
+        // Wow: uneven rotation speed, once per revolution (off-centre spindle hole).
+        wow: {
+          '0%,100%': { transform: 'rotate(0deg)' },
+          '25%': { transform: 'rotate(1.4deg)' },
+          '50%': { transform: 'rotate(0.2deg)' },
+          '75%': { transform: 'rotate(-1.1deg)' },
+        },
+        // Flutter: fast, tiny speed jitter from the drive.
+        flutter: {
+          '0%,100%': { transform: 'rotate(0deg)' },
+          '30%': { transform: 'rotate(0.22deg)' },
+          '60%': { transform: 'rotate(-0.16deg)' },
+        },
+        // Warp: a slightly warped pressing tilting as it turns.
+        warp: {
+          '0%,100%': { transform: 'perspective(1200px) rotateX(0.9deg) rotateY(0deg)' },
+          '25%': { transform: 'perspective(1200px) rotateX(0deg) rotateY(0.9deg)' },
+          '50%': { transform: 'perspective(1200px) rotateX(-0.9deg) rotateY(0deg)' },
+          '75%': { transform: 'perspective(1200px) rotateX(0deg) rotateY(-0.9deg)' },
+        },
+        // Tonearm riding the warp.
+        armbob: {
+          '0%,100%': { transform: 'rotate(0deg)' },
+          '50%': { transform: 'rotate(0.45deg)' },
+        },
       },
       animation: {
-        'spin-record': 'spin 1.8s linear infinite',
+        'spin-record': 'spin 2.4s linear infinite',
         drift: 'drift 18s ease-in-out infinite',
         pulsering: 'pulsering 2.2s ease-in-out infinite',
         rise: 'rise .35s cubic-bezier(.2,.8,.2,1) both',
+        // all synced to one 2.4s revolution
+        wow: 'wow 2.4s ease-in-out infinite',
+        flutter: 'flutter 0.17s linear infinite',
+        warp: 'warp 2.4s linear infinite',
+        armbob: 'armbob 1.2s ease-in-out infinite',
       },
     },
   },

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { fetchPlaylist, fetchVideoMeta, parseYouTubeUrl, searchVideos } from '../lib/youtube.js';
-import { IconCheck, IconKey, IconLink, IconPlay, IconPlus, IconSearch, IconTrash, IconX } from './Icons.jsx';
+import { IconCheck, IconKey, IconLink, IconPlay, IconPlus, IconQueue, IconSearch, IconTrash, IconX } from './Icons.jsx';
 
 function Bars() {
   return (
@@ -46,7 +46,20 @@ function TrackRow({ track, index, current, playing, onPlay, action }) {
   );
 }
 
-function SearchHub({ apiKey, onOpenApi, onAdd, onPlayList, folderName, existingIds }) {
+export function QueueButton({ onClick, title, className = '' }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`icon-btn h-8 w-8 muted ${className}`}
+      aria-label={`Add ${title} to queue`}
+      title="Add to queue"
+    >
+      <IconQueue size={16} />
+    </button>
+  );
+}
+
+function SearchHub({ onQueue, apiKey, oauthToken, onOpenApi, onAdd, onPlayList, folderName, existingIds }) {
   const [q, setQ] = useState('');
   const [results, setResults] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -65,11 +78,24 @@ function SearchHub({ apiKey, onOpenApi, onAdd, onPlayList, folderName, existingI
       const link = parseYouTubeUrl(text);
       if (link) {
         let list = [];
-        if (link.playlistId && apiKey) {
-          list = await fetchPlaylist(link.playlistId, apiKey).catch(() => []);
+        // signed-in token first (reads private playlists too), else the API key
+        const auth = oauthToken ? { token: oauthToken } : apiKey;
+        let playlistError = null;
+        if (link.playlistId && auth) {
+          list = await fetchPlaylist(link.playlistId, auth).catch((e) => {
+            playlistError = e;
+            return [];
+          });
         }
         if (!list.length && link.videoId) list = [await fetchVideoMeta(link.videoId, apiKey)];
-        if (!list.length) throw new Error('Playlist links need an API key. Add one under API Credentials, or paste a single video link.');
+        if (!list.length) {
+          if (playlistError) throw playlistError;
+          throw new Error(
+            auth
+              ? 'That playlist is empty or private. Connect YouTube to import your private playlists.'
+              : 'Playlist links need an API key (API Credentials) or a connected YouTube account.'
+          );
+        }
         setResults(list);
       } else {
         if (!apiKey) {
@@ -172,6 +198,8 @@ function SearchHub({ apiKey, onOpenApi, onAdd, onPlayList, folderName, existingI
                   track={t}
                   onPlay={() => onPlayList(results, i)}
                   action={
+                    <div className="flex shrink-0 items-center gap-1">
+                    {onQueue && <QueueButton onClick={() => onQueue([t])} title={t.title} />}
                     <button
                       onClick={() => add(t)}
                       disabled={done}
@@ -185,6 +213,7 @@ function SearchHub({ apiKey, onOpenApi, onAdd, onPlayList, folderName, existingI
                     >
                       {done ? <IconCheck size={15} /> : <IconPlus size={16} />}
                     </button>
+                    </div>
                   }
                 />
               );
@@ -208,15 +237,27 @@ export default function LibraryPane({
   isPlaying,
   embedded = false,
   forYou = null,
+  oauthToken = null,
+  onQueue = null,
+  queuePanel = null,
+  queueCount = 0,
 }) {
   const existingIds = new Set(folder.tracks.map((t) => t.videoId));
   const [tab, setTab] = useState('shelf');
+  const tabs = [
+    ['shelf', 'Shelf'],
+    queuePanel && ['queue', queueCount ? `Queue · ${queueCount}` : 'Queue'],
+    forYou && ['foryou', 'For You'],
+  ].filter(Boolean);
+  const scrollArea = `pt-3 ${embedded ? '' : 'scroll-thin min-h-0 flex-1 overflow-y-auto'}`;
   return (
     <div className={`flex flex-col ${embedded ? '' : 'h-full min-h-0'}`}>
       <div className="px-4 pb-2 pt-4">
         <SearchHub
+          onQueue={onQueue}
           key={folder.id}
           apiKey={apiKey}
+          oauthToken={oauthToken}
           onOpenApi={onOpenApi}
           onAdd={onAddTracks}
           onPlayList={onPlayList}
@@ -225,12 +266,13 @@ export default function LibraryPane({
         />
       </div>
 
-      {forYou && (
-        <div className="mx-4 mt-1 grid grid-cols-2 rounded-xl bg-black/[0.04] p-1 text-xs font-semibold dark:bg-white/[0.05]" role="tablist">
-          {[
-            ['shelf', 'Shelf'],
-            ['foryou', 'For You'],
-          ].map(([id, label]) => (
+      {tabs.length > 1 && (
+        <div
+          className="mx-4 mt-1 grid rounded-xl bg-black/[0.04] p-1 text-xs font-semibold dark:bg-white/[0.05]"
+          style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}
+          role="tablist"
+        >
+          {tabs.map(([id, label]) => (
             <button
               key={id}
               role="tab"
@@ -245,7 +287,9 @@ export default function LibraryPane({
       )}
 
       {tab === 'foryou' && forYou ? (
-        <div className={`pt-4 ${embedded ? '' : 'scroll-thin min-h-0 flex-1 overflow-y-auto'}`}>{forYou}</div>
+        <div className={scrollArea}>{forYou}</div>
+      ) : tab === 'queue' && queuePanel ? (
+        <div className={scrollArea}>{queuePanel}</div>
       ) : (
         <>
       <div className="flex items-end justify-between px-5 pb-2 pt-3">
@@ -254,9 +298,16 @@ export default function LibraryPane({
           <h3 className="truncate font-display text-xl font-semibold tracking-tight">{folder.name}</h3>
         </div>
         {folder.tracks.length > 0 && (
-          <button className="btn-ghost shrink-0 rounded-full px-3 py-1.5 text-xs" onClick={() => onPlayFolder(0)}>
-            <IconPlay size={13} /> Play all
-          </button>
+          <div className="flex shrink-0 items-center gap-1">
+            {onQueue && (
+              <button className="btn-ghost rounded-full px-3 py-1.5 text-xs" onClick={() => onQueue(folder.tracks)} title="Add the whole shelf to the queue">
+                <IconQueue size={13} /> Queue
+              </button>
+            )}
+            <button className="btn-ghost rounded-full px-3 py-1.5 text-xs" onClick={() => onPlayFolder(0)}>
+              <IconPlay size={13} /> Play all
+            </button>
+          </div>
         )}
       </div>
 
@@ -277,13 +328,16 @@ export default function LibraryPane({
               playing={isPlaying}
               onPlay={() => onPlayFolder(i)}
               action={
-                <button
-                  className="icon-btn h-8 w-8 opacity-100 muted transition lg:opacity-0 lg:group-hover:opacity-100 lg:focus:opacity-100"
-                  onClick={() => onRemove(t.id)}
-                  aria-label={`Remove ${t.title}`}
-                >
-                  <IconTrash size={15} />
-                </button>
+                <div className="flex shrink-0 items-center opacity-100 transition lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100">
+                  {onQueue && <QueueButton onClick={() => onQueue([t])} title={t.title} />}
+                  <button
+                    className="icon-btn h-8 w-8 muted"
+                    onClick={() => onRemove(t.id)}
+                    aria-label={`Remove ${t.title}`}
+                  >
+                    <IconTrash size={15} />
+                  </button>
+                </div>
               }
             />
           ))

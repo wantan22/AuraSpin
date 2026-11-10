@@ -34,6 +34,49 @@ npm run build    # static output in dist/
 - **Media Session.** Shows the title, artist and artwork on the OS media controls. Supports
   play, pause, next, previous, seek and lock-screen scrubbing.
 
+## Cross-device sync (Supabase)
+
+When `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are set in `.env`, email accounts
+become Supabase accounts. Each account's shelves, listening history, playback position,
+theme, guide status, API key and OAuth client ID sync across devices. Changes made on
+another device appear live through Realtime.
+
+Without these values, the app falls back to browser-only accounts. Guest profiles always
+stay on one device.
+
+- **Database schema:** [`supabase/schema.sql`](supabase/schema.sql). It creates one table,
+  `user_state`, with row-level security, so each user can only read and write their own rows.
+- **Conflicts:** last write wins, separately for each type of data. Edits made while
+  offline upload the next time the app is opened or comes back into focus.
+- **Moving old accounts:** the first cloud sign-in uploads any browser-only data that was
+  saved under the same email on that device.
+- **Signing out:** removes the cached copy from the device.
+
+In Supabase, go to **Authentication → URL Configuration** and set **Site URL** to your live
+address. Add it, and `http://localhost:5174`, under **Redirect URLs** so that confirmation
+and password-reset emails link back to the app.
+
+## Connect YouTube (optional)
+
+**Connect YouTube** in the sidebar uses Google sign-in with the read-only
+`youtube.readonly` scope. You can import your playlists, including ones made in YouTube
+Music and private ones, and your liked videos as shelves. The access token stays in memory
+only and is revoked when you disconnect or log out.
+
+Setup in Google Cloud Console:
+
+1. Open **OAuth consent screen**, choose **External**, and add the
+   `https://www.googleapis.com/auth/youtube.readonly` scope.
+2. Add each Google account that will connect as a **test user**. Until Google verifies the
+   app, only test users can sign in, up to 100.
+3. Create an **OAuth client ID** of type **Web application**. Under **Authorised JavaScript
+   origins**, add your site's address, such as `https://your-site.netlify.app` and
+   `http://localhost:5174`.
+4. Paste the client ID into AuraSpin's **Connect YouTube** dialog.
+
+YouTube Music's separate "Liked Music" list and uploaded songs aren't available through
+Google's API.
+
 ## Limitations
 
 - **Accounts are local to the browser.** There is no server. An account made on one device

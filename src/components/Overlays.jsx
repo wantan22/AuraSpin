@@ -195,6 +195,59 @@ export function ApiKeyModal({ open, onClose, value, onSave }) {
   );
 }
 
+/** Shown after the user follows a "reset password" email link. */
+export function SetPasswordModal({ onDone }) {
+  const [pw, setPw] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+  const submit = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    setError('');
+    try {
+      const { cloudUpdatePassword } = await import('../lib/cloud.js');
+      await cloudUpdatePassword(pw);
+      setDone(true);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal open onClose={onDone} title="Set a new password">
+      <h2 className="font-display text-xl font-semibold">Set a new password</h2>
+      {done ? (
+        <>
+          <p className="mt-2 text-sm muted">Password updated. You’re signed in.</p>
+          <button className="btn-primary mt-5 w-full" onClick={onDone}>
+            Continue
+          </button>
+        </>
+      ) : (
+        <form onSubmit={submit} className="mt-4 space-y-3">
+          <input
+            className="field"
+            type="password"
+            autoComplete="new-password"
+            placeholder="New password (6+ characters)"
+            value={pw}
+            onChange={(e) => setPw(e.target.value)}
+            minLength={6}
+            required
+            autoFocus
+          />
+          {error && <p className="rounded-xl bg-red-500/10 px-3 py-2 text-xs text-red-700 dark:text-red-300">{error}</p>}
+          <button className="btn-primary w-full" disabled={busy || pw.length < 6}>
+            {busy ? 'Saving…' : 'Save password'}
+          </button>
+        </form>
+      )}
+    </Modal>
+  );
+}
+
 export function Toast({ message }) {
   return (
     <div

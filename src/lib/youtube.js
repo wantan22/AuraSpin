@@ -68,10 +68,22 @@ export function makeTrack({ videoId, title, artist, thumb }) {
   };
 }
 
-async function apiGet(path, params, key) {
-  const qs = new URLSearchParams({ ...params, key });
-  const res = await fetch(`https://www.googleapis.com/youtube/v3/${path}?${qs}`);
+/**
+ * `auth` is either an API key string (public data) or `{ token }` from Google sign-in
+ * (the user's own account, including private playlists).
+ */
+async function apiGet(path, params, auth) {
+  const isToken = auth && typeof auth === 'object' && auth.token;
+  const qs = new URLSearchParams(isToken ? params : { ...params, key: auth });
+  const res = await fetch(`https://www.googleapis.com/youtube/v3/${path}?${qs}`, {
+    headers: isToken ? { Authorization: `Bearer ${auth.token}` } : undefined,
+  });
   const data = await res.json().catch(() => ({}));
+  if (!res.ok && isToken) {
+    if (res.status === 401) throw new Error('Your YouTube connection expired. Connect again.');
+    if (res.status === 403)
+      throw new Error(data?.error?.message || 'YouTube refused access. Make sure YouTube Data API v3 is enabled for this project.');
+  }
   if (!res.ok) {
     const reason = data?.error?.errors?.[0]?.reason || data?.error?.details?.[0]?.reason;
     if (reason === 'quotaExceeded') throw new Error('Daily YouTube API quota exceeded for this key.');
@@ -99,15 +111,30 @@ export async function searchVideos(query, key, { music = false, max = 15 } = {})
     );
 }
 
-export async function fetchPlaylist(playlistId, key) {
-  const data = await apiGet('playlistItems', { part: 'snippet', maxResults: '50', playlistId }, key);
-  return (data.items || [])
-    .filter(
-      (it) =>
-        it.snippet?.resourceId?.videoId &&
-        it.snippet.title !== 'Private video' &&
-        it.snippet.title !== 'Deleted video'
-    )
+/** Follows nextPageToken until `limit` items. Each page costs 1 quota unit. */
+async function paginate(path, params, auth, limit) {
+  const items = [];
+  let pageToken;
+  do {
+    const data = await apiGet(path, { ...params, maxResults: '50', ...(pageToken ? { pageToken } : {}) }, auth);
+    items.push(...(data.items || []));
+    pageToken = data.nextPageToken;
+  } while (pageToken && items.length < limit);
+  return items.slice(0, limit);
+}
+
+const playable = (title) => title !== 'Private video' && title !== 'Deleted video';
+
+export async function fetchPlaylist(playlistId, auth, { limit = 500 } = {}) {
+  const items = await paginate('playlistItems', { part: 'snippet', playlistId }, auth, limit);
+  const seen = new Set();
+  return items
+    .filter((it) => {
+      const id = it.snippet?.resourceId?.videoId;
+      if (!id || !playable(it.snippet.title) || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    })
     .map((it) =>
       makeTrack({
         videoId: it.snippet.resourceId.videoId,
@@ -116,6 +143,31 @@ export async function fetchPlaylist(playlistId, key) {
         thumb: it.snippet.thumbnails?.high?.url,
       })
     );
+}
+
+/** The signed-in user's own playlists (YouTube + YouTube Music share these). */
+export async function listMyPlaylists(token) {
+  const items = await paginate('playlists', { part: 'snippet,contentDetails,status', mine: 'true' }, { token }, 500);
+  return items.map((p) => ({
+    id: p.id,
+    title: decodeEntities(p.snippet.title),
+    count: p.contentDetails?.itemCount ?? 0,
+    privacy: p.status?.privacyStatus,
+    thumb: p.snippet.thumbnails?.medium?.url || p.snippet.thumbnails?.default?.url,
+  }));
+}
+
+/** Videos the user pressed 👍 on. (YouTube Music's separate "Liked Music" list isn't exposed.) */
+export async function fetchLikedVideos(token, { limit = 500 } = {}) {
+  const items = await paginate('videos', { part: 'snippet', myRating: 'like' }, { token }, limit);
+  return items.map((v) =>
+    makeTrack({
+      videoId: v.id,
+      title: v.snippet.title,
+      artist: v.snippet.channelTitle,
+      thumb: v.snippet.thumbnails?.high?.url,
+    })
+  );
 }
 
 /** Metadata for a single video. Uses the Data API when a key exists, otherwise public oEmbed. */

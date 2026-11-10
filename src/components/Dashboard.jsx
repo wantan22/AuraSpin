@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { createUserStore, newId } from '../lib/storage.js';
+import { newId } from '../lib/storage.js';
+import { getUserStore, onSyncStatus, subscribeRemote } from '../lib/cloud.js';
 import { accent } from '../lib/color.js';
 import { useBreakpoint, usePalette } from '../hooks/misc.js';
 import { useYouTubePlayer, YTS } from '../hooks/useYouTubePlayer.js';
@@ -16,6 +17,9 @@ import VinylStage, { enterFullscreen, exitFullscreen } from './VinylStage.jsx';
 import { renderVinylArtwork } from '../lib/vinylArt.js';
 import { emptyHistory, recordPlay } from '../lib/recommend.js';
 import ForYou from './ForYou.jsx';
+import ConnectYouTubeModal from './ConnectYouTube.jsx';
+import QueuePanel from './QueuePanel.jsx';
+import { disconnectYouTube } from '../lib/googleAuth.js';
 
 const defaultLibrary = () => {
   const id = newId();
@@ -32,8 +36,8 @@ function sanitizeLibrary(lib) {
  * Everything user-specific lives below this component, which is keyed by uid in <App>.
  * Logging out unmounts it, which destroys the YouTube player, the aura and the library view.
  */
-export default function Dashboard({ user, dark, onToggleTheme, onLogout }) {
-  const store = useMemo(() => createUserStore(user.uid), [user.uid]);
+export default function Dashboard({ user, dark, onToggleTheme, onRemoteTheme, onLogout }) {
+  const store = useMemo(() => getUserStore(user), [user]);
   const bp = useBreakpoint();
 
   // ---------- library ----------
@@ -85,6 +89,45 @@ export default function Dashboard({ user, dark, onToggleTheme, onLogout }) {
   };
   const [apiOpen, setApiOpen] = useState(false);
 
+  // ---------- YouTube account (Google sign-in) ----------
+  // The client ID is a public identifier, so it's saved per profile. The access token is
+  // kept in memory only: it disappears on reload, logout or disconnect.
+  const [ytClientId, setYtClientId] = useState(() => store.get('oauth', ''));
+  const [ytAuth, setYtAuth] = useState(null);
+  const [ytOpen, setYtOpen] = useState(false);
+  const ytToken = ytAuth && ytAuth.expiresAt > Date.now() ? ytAuth.token : null;
+  const saveClientId = (id) => {
+    setYtClientId(id);
+    store.set('oauth', id);
+  };
+  const disconnectYt = () => {
+    disconnectYouTube(ytAuth?.token);
+    setYtAuth(null);
+    flash('YouTube disconnected');
+  };
+
+  /** Imports tracks into a shelf with this name (created if needed). Returns how many were new. */
+  const importToShelf = (name, tracks) => {
+    const existing = library.folders.find((f) => f.name === name);
+    const have = new Set(existing ? existing.tracks.map((t) => t.videoId) : []);
+    const fresh = tracks
+      .filter((t) => !have.has(t.videoId) && have.add(t.videoId))
+      .map((t) => ({ ...t, id: newId(), addedAt: Date.now() }));
+    setLibrary((l) => {
+      const target = l.folders.find((f) => f.name === name);
+      if (target) {
+        return {
+          folders: l.folders.map((f) => (f.id === target.id ? { ...f, tracks: [...f.tracks, ...fresh] } : f)),
+          activeId: target.id,
+        };
+      }
+      const id = newId();
+      return { folders: [...l.folders, { id, name, tracks: fresh, createdAt: Date.now() }], activeId: id };
+    });
+    if (fresh.length) flash(`${fresh.length} added to “${name}”`);
+    return fresh.length;
+  };
+
   // ---------- toast ----------
   const [toast, setToast] = useState('');
   const toastTimer = useRef();
@@ -122,6 +165,57 @@ export default function Dashboard({ user, dark, onToggleTheme, onLogout }) {
     [player.load] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
+  // ---------- queue ----------
+  /** Empties the platter: stops playback, clears the queue, record goes back to blank. */
+  const clearDeck = () => {
+    player.stop();
+    setQueue([]);
+    setIndex(-1);
+    flash('Queue finished');
+  };
+
+  /** Appends to the queue. If nothing is on the platter, the first one starts playing. */
+  const enqueue = (tracks) => {
+    if (!tracks.length) return;
+    const items = tracks.map((t) => ({ ...t, id: newId() })); // own ids: the same song can be queued twice
+    if (!track) {
+      playAt(items, 0);
+      flash(items.length === 1 ? `Playing “${items[0].title}”` : `Playing ${items.length} songs`);
+      return;
+    }
+    setQueue((q) => [...q, ...items]);
+    flash(items.length === 1 ? `Added “${items[0].title}” to queue` : `${items.length} songs added to queue`);
+  };
+
+  const removeFromQueue = (i) => {
+    if (i === index) return; // the record on the platter can't be pulled from under the needle
+    setQueue((q) => q.filter((_, j) => j !== i));
+    if (i < index) setIndex((x) => x - 1);
+  };
+
+  const clearUpcoming = () => setQueue((q) => q.slice(0, index + 1));
+
+  /** Reorders upcoming songs. The song on the platter (and history before it) stay put. */
+  const moveInQueue = (from, to) => {
+    if (from <= index || to <= index || from === to) return;
+    setQueue((q) => {
+      const a = [...q];
+      const [item] = a.splice(from, 1);
+      a.splice(to, 0, item);
+      return a;
+    });
+  };
+
+  const queueProps = {
+    queue,
+    index,
+    isPlaying: player.isPlaying,
+    onPlayIndex: (i) => playAt(queue, i),
+    onRemove: removeFromQueue,
+    onClearUpcoming: clearUpcoming,
+    onMove: moveInQueue,
+  };
+
   const next = (auto = false) => {
     if (!queue.length) return;
     if (auto && repeat === 'one') {
@@ -136,7 +230,7 @@ export default function Dashboard({ user, dark, onToggleTheme, onLogout }) {
     } else ni = index + 1;
     if (ni >= queue.length) {
       if (auto && repeat === 'off') {
-        player.pause();
+        clearDeck(); // last song finished and nothing is queued: lift the record off
         return;
       }
       ni = 0;
@@ -204,6 +298,28 @@ export default function Dashboard({ user, dark, onToggleTheme, onLogout }) {
     return [...ids];
   }, [history, library]);
 
+  // ---------- cross-device sync ----------
+  const [syncStatus, setSyncStatus] = useState(user.cloud ? 'synced' : null);
+  const remoteRef = useRef();
+  remoteRef.current = (bucket, data) => {
+    if (bucket === 'library') setLibrary(sanitizeLibrary(data));
+    else if (bucket === 'history') setHistory(data || emptyHistory());
+    else if (bucket === 'apikey') setApiKeyState(data || '');
+    else if (bucket === 'oauth') setYtClientId(data || '');
+    else if (bucket === 'theme') onRemoteTheme?.(data);
+    else return; // player / onboarded: never hijack what's playing here
+    flash('Synced changes from another device');
+  };
+  useEffect(() => {
+    if (!user.cloud) return undefined;
+    const offStatus = onSyncStatus(setSyncStatus);
+    const offRemote = subscribeRemote(user.uid, (b, d) => remoteRef.current(b, d));
+    return () => {
+      offStatus();
+      offRemote();
+    };
+  }, [user]);
+
   // Tonearm: dropping the needle at fraction f of the grooves seeks there and plays.
   const armDrop = (f) => {
     if (!track) {
@@ -228,11 +344,35 @@ export default function Dashboard({ user, dark, onToggleTheme, onLogout }) {
     if (track) player.load(track.videoId, { autoplay: false, start: saved.position || 0 });
   }, [player.ready]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ---------- vinyl wobble (audio) ----------
+  // YouTube won't expose its audio or allow fine pitch changes, so "wow" is rendered as a
+  // gentle volume tremolo locked to the record's 2.4s revolution, plus a faster shimmer.
+  const [wobble, setWobble] = useState(!!saved.wobble);
+  const { setVolumeRaw, isPlaying: playingNow, volume: baseVolume } = player;
+  useEffect(() => {
+    if (!wobble || !playingNow || baseVolume === 0) {
+      setVolumeRaw(baseVolume);
+      return undefined;
+    }
+    const start = performance.now();
+    const id = setInterval(() => {
+      const t = (performance.now() - start) / 1000;
+      const wow = Math.sin((2 * Math.PI * t) / 2.4); // once per revolution
+      const shimmer = Math.sin(2 * Math.PI * t * 1.7); // quicker, smaller
+      const dip = 0.16 * (0.5 + 0.5 * (0.8 * wow + 0.2 * shimmer)); // 0 … 16% quieter
+      setVolumeRaw(baseVolume * (1 - dip));
+    }, 80);
+    return () => {
+      clearInterval(id);
+      setVolumeRaw(baseVolume);
+    };
+  }, [wobble, playingNow, baseVolume, setVolumeRaw]);
+
   // Persist playback state (position in 5s steps).
   const pos5 = Math.floor(player.time.current / 5) * 5;
   useEffect(() => {
-    store.set('player', { queue, index, shuffle, repeat, volume: player.volume, position: pos5 });
-  }, [store, queue, index, shuffle, repeat, player.volume, pos5]);
+    store.set('player', { queue, index, shuffle, repeat, wobble, volume: player.volume, position: pos5 });
+  }, [store, queue, index, shuffle, repeat, wobble, player.volume, pos5]);
 
   // ---------- visuals ----------
   const palette = usePalette(track?.thumb, track?.videoId);
@@ -311,6 +451,7 @@ export default function Dashboard({ user, dark, onToggleTheme, onLogout }) {
   }, [bp, guide, guideStep]);
 
   const logout = () => {
+    disconnectYouTube(ytAuth?.token);
     player.stop();
     onLogout();
   };
@@ -328,6 +469,9 @@ export default function Dashboard({ user, dark, onToggleTheme, onLogout }) {
       onToggleTheme={onToggleTheme}
       onOpenApi={() => setApiOpen(true)}
       hasApiKey={!!apiKey}
+      onOpenYouTube={() => setYtOpen(true)}
+      ytConnected={!!ytToken}
+      syncStatus={syncStatus}
       onLogout={logout}
       onReplayGuide={() => {
         setGuideStep(0);
@@ -352,6 +496,10 @@ export default function Dashboard({ user, dark, onToggleTheme, onLogout }) {
       currentVideoId={track?.videoId}
       isPlaying={player.isPlaying}
       embedded={embedded}
+      oauthToken={ytToken}
+      onQueue={enqueue}
+      queueCount={index >= 0 ? Math.max(0, queue.length - index - 1) : 0}
+      queuePanel={<QueuePanel {...queueProps} />}
       forYou={
         <ForYou
           history={history}
@@ -365,6 +513,7 @@ export default function Dashboard({ user, dark, onToggleTheme, onLogout }) {
             if (bp === 'mobile') setLibOpen(false);
           }}
           onAdd={addTracks}
+          onQueue={enqueue}
           currentVideoId={track?.videoId}
           isPlaying={player.isPlaying}
         />
@@ -416,6 +565,11 @@ export default function Dashboard({ user, dark, onToggleTheme, onLogout }) {
           onVolume={player.setVolume}
           onShuffle={() => setShuffle((s) => !s)}
           onRepeat={() => setRepeat((r) => (r === 'off' ? 'all' : r === 'all' ? 'one' : 'off'))}
+          wobble={wobble}
+          onWobble={() => {
+            setWobble((w) => !w);
+            flash(wobble ? 'Vinyl wobble off' : 'Vinyl wobble on: gentle wow & flutter');
+          }}
           compact={bp === 'mobile'}
         />
       </div>
@@ -435,7 +589,7 @@ export default function Dashboard({ user, dark, onToggleTheme, onLogout }) {
       />
 
       {bp === 'desktop' && (
-        <div className="grid h-[100dvh] grid-cols-[272px_minmax(340px,420px)_1fr] gap-4 p-4">
+        <div className="grid h-[100dvh] grid-cols-[272px_minmax(340px,420px)_1fr] gap-4 p-4 pt-[max(1rem,env(safe-area-inset-top))]">
           <aside className="glass min-h-0 overflow-hidden rounded-[28px]">{nav(false)}</aside>
           <section className="glass min-h-0 overflow-hidden rounded-[28px]">{libraryPane(false)}</section>
           <main className="flex min-h-0 items-center justify-center overflow-y-auto px-6 py-6">{stage}</main>
@@ -517,6 +671,21 @@ export default function Dashboard({ user, dark, onToggleTheme, onLogout }) {
         onPrev={prev}
         onArmDrop={armDrop}
         onArmLift={armLift}
+        queueProps={queueProps}
+      />
+
+      <ConnectYouTubeModal
+        open={ytOpen}
+        onClose={() => setYtOpen(false)}
+        clientId={ytClientId}
+        onSaveClientId={saveClientId}
+        auth={ytAuth}
+        onConnected={(a) => {
+          setYtAuth(a);
+          flash('YouTube connected');
+        }}
+        onDisconnect={disconnectYt}
+        onImport={importToShelf}
       />
 
       <ApiKeyModal open={apiOpen} onClose={() => setApiOpen(false)} value={apiKey} onSave={saveApiKey} />

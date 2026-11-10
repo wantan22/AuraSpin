@@ -8,11 +8,11 @@ import {
   topArtists,
   totalPlays,
 } from '../lib/recommend.js';
-import { IconCheck, IconDisc, IconKey, IconPlay, IconPlus, IconRepeat } from './Icons.jsx';
+import { IconCheck, IconDisc, IconKey, IconPlay, IconPlus, IconQueue, IconRepeat } from './Icons.jsx';
 
 const inflight = new Map();
 
-function Card({ track, current, playing, added, onPlay, onAdd }) {
+function Card({ track, current, playing, added, onPlay, onAdd, onQueue }) {
   return (
     <div className="group w-[132px] shrink-0 snap-start">
       <div className="relative aspect-square overflow-hidden rounded-2xl bg-black/5 shadow-sm dark:bg-white/5">
@@ -28,6 +28,16 @@ function Card({ track, current, playing, added, onPlay, onAdd }) {
             </span>
           </span>
         </button>
+        {onQueue && (
+          <button
+            onClick={onQueue}
+            className="absolute bottom-1.5 left-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-white/90 text-charcoal opacity-100 shadow transition hover:scale-110 lg:opacity-0 lg:group-hover:opacity-100"
+            aria-label={`Add ${track.title} to queue`}
+            title="Add to queue"
+          >
+            <IconQueue size={13} />
+          </button>
+        )}
         {onAdd && (
           <button
             onClick={onAdd}
@@ -70,6 +80,7 @@ function Row({ title, subtitle, tracks, ...rest }) {
             added={rest.shelfIds.has(t.videoId)}
             onPlay={() => rest.onPlayList(tracks, i)}
             onAdd={() => rest.onAdd([t])}
+            onQueue={rest.onQueue ? () => rest.onQueue([t]) : undefined}
           />
         ))}
       </div>
@@ -77,7 +88,7 @@ function Row({ title, subtitle, tracks, ...rest }) {
   );
 }
 
-export default function ForYou({ history, store, apiKey, knownIds, shelfIds, onOpenApi, onPlayList, onAdd, currentVideoId, isPlaying }) {
+export default function ForYou({ history, store, apiKey, knownIds, shelfIds, onOpenApi, onPlayList, onAdd, onQueue, currentVideoId, isPlaying }) {
   const plays = totalPlays(history);
   const rotation = useMemo(() => heavyRotation(history, 10), [history]);
   const backUp = useMemo(() => pickBackUp(history, 10), [history]);
@@ -123,7 +134,7 @@ export default function ForYou({ history, store, apiKey, knownIds, shelfIds, onO
     refresh(false);
   }, [refresh]);
 
-  const rowProps = { currentVideoId, isPlaying, shelfIds, onPlayList, onAdd };
+  const rowProps = { currentVideoId, isPlaying, shelfIds, onPlayList, onAdd, onQueue };
 
   if (!plays) {
     return (

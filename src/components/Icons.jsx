@@ -151,6 +151,7 @@ export const IconLink = make(
   </>
 );
 export const IconChevronUp = make(<path d="m18 15-6-6-6 6" />);
+export const IconChevron = make(<path d="m9 6 6 6-6 6" />);
 export const IconCompass = make(
   <>
     <circle cx="12" cy="12" r="9" />
@@ -183,6 +184,12 @@ export const IconShrink = make(
     <path d="M20 10h-6V4" />
     <path d="m14 10 7-7" />
     <path d="m3 21 7-7" />
+  </>
+);
+export const IconYouTube = make(
+  <>
+    <rect x="2.5" y="5" width="19" height="14" rx="4" />
+    <path d="m10 9.2 5 2.8-5 2.8Z" fill="currentColor" />
   </>
 );
 export const IconQueue = make(

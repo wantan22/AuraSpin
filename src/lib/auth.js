@@ -28,7 +28,7 @@ async function hashPassword(password, saltHex) {
 const normEmail = (email) => email.trim().toLowerCase();
 const validEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-async function uidForEmail(email) {
+export async function uidForEmail(email) {
   return 'u_' + (await sha256Hex('auraspin:' + normEmail(email))).slice(0, 24);
 }
 

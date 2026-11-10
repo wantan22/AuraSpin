@@ -154,6 +154,11 @@ export function useYouTubePlayer({ onEnded, onError, initialVolume = 80 } = {}) 
     if (v > 0) playerRef.current?.unMute?.();
   }, []);
 
+  /** Sets the player's volume without changing the user's chosen level (for effects). */
+  const setVolumeRaw = useCallback((v) => {
+    playerRef.current?.setVolume?.(Math.max(0, Math.min(100, Math.round(v))));
+  }, []);
+
   const getTime = useCallback(() => {
     const p = playerRef.current;
     return { current: p?.getCurrentTime?.() || 0, duration: p?.getDuration?.() || 0 };
@@ -178,6 +183,7 @@ export function useYouTubePlayer({ onEnded, onError, initialVolume = 80 } = {}) 
     stop,
     seek,
     setVolume,
+    setVolumeRaw,
     getTime,
   };
 }

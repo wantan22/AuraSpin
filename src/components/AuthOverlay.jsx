@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { signIn, signInGuest, signUp } from '../lib/auth.js';
+import { cloudEnabled, cloudResetPassword, cloudSignIn, cloudSignUp } from '../lib/cloud.js';
 import { IconUser } from './Icons.jsx';
 import { Brand, ThemeToggle } from './NavShelf.jsx';
 
@@ -10,14 +11,47 @@ export default function AuthOverlay({ onAuthed, dark, onToggleTheme }) {
   const [name, setName] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState('');
 
   const submit = async (e) => {
     e.preventDefault();
     setError('');
+    setNotice('');
     setBusy(true);
     try {
-      const user = mode === 'login' ? await signIn(email, password) : await signUp(email, password, name);
-      onAuthed(user);
+      if (!cloudEnabled) {
+        const user = mode === 'login' ? await signIn(email, password) : await signUp(email, password, name);
+        await onAuthed(user);
+      } else if (mode === 'login') {
+        await onAuthed(await cloudSignIn(email, password));
+      } else {
+        const res = await cloudSignUp(email, password, name);
+        if (res.needsConfirm) {
+          setMode('login');
+          setPassword('');
+          setNotice(`We sent a confirmation link to ${email.trim()}. Open it, then log in here.`);
+        } else {
+          await onAuthed(res.user);
+        }
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const forgot = async () => {
+    setError('');
+    setNotice('');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError('Type your email above first, then tap “Forgot password?”.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await cloudResetPassword(email);
+      setNotice(`If an account exists for ${email.trim()}, a reset link is on its way.`);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -50,6 +84,7 @@ export default function AuthOverlay({ onAuthed, dark, onToggleTheme }) {
               onClick={() => {
                 setMode(m);
                 setError('');
+                setNotice('');
               }}
               className={`rounded-lg py-2 transition ${mode === m ? 'bg-white shadow-sm dark:bg-white/10' : 'opacity-55 hover:opacity-80'}`}
             >
@@ -73,6 +108,14 @@ export default function AuthOverlay({ onAuthed, dark, onToggleTheme }) {
             required
             minLength={mode === 'signup' ? 6 : undefined}
           />
+          {cloudEnabled && mode === 'login' && (
+            <div className="-mt-1 text-right">
+              <button type="button" onClick={forgot} className="text-xs font-semibold muted hover:underline">
+                Forgot password?
+              </button>
+            </div>
+          )}
+          {notice && <p className="rounded-xl bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300">{notice}</p>}
           {error && <p className="rounded-xl bg-red-500/10 px-3 py-2 text-xs text-red-700 dark:text-red-300">{error}</p>}
           <button className="btn-primary w-full py-3" disabled={busy}>
             {busy ? 'One moment…' : mode === 'login' ? 'Log in' : 'Create account'}
@@ -82,11 +125,13 @@ export default function AuthOverlay({ onAuthed, dark, onToggleTheme }) {
         <div className="my-5 flex items-center gap-3 text-[11px] uppercase tracking-[0.14em] muted">
           <span className="h-px flex-1 bg-current opacity-20" /> or <span className="h-px flex-1 bg-current opacity-20" />
         </div>
-        <button className="btn-ghost w-full py-3" onClick={() => onAuthed(signInGuest())}>
+        <button className="btn-ghost w-full py-3" onClick={() => onAuthed(signInGuest())} disabled={busy}>
           <IconUser size={17} /> Continue as Guest Profile
         </button>
         <p className="mt-4 text-center text-[11px] muted">
-          Accounts live in this browser only. Passwords are salted and hashed; nothing is sent to a server.
+          {cloudEnabled
+            ? 'Accounts sync your shelves, history and settings across devices. Guest profiles stay on this device.'
+            : 'Accounts live in this browser only. Passwords are salted and hashed; nothing is sent to a server.'}
         </p>
       </div>
     </div>

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import Turntable from './Turntable.jsx';
 import { css, accent } from '../lib/color.js';
-import { IconNext, IconPause, IconPlay, IconPrev, IconShrink } from './Icons.jsx';
+import { IconChevron, IconNext, IconPause, IconPlay, IconPrev, IconQueue, IconShrink } from './Icons.jsx';
+import QueuePanel from './QueuePanel.jsx';
 
 // ---- Fullscreen helpers (must be called from a user gesture) ----
 export function enterFullscreen() {
@@ -97,8 +98,11 @@ export default function VinylStage({
   onPrev,
   onArmDrop,
   onArmLift,
+  queueProps,
 }) {
   const [chrome, setChrome] = useState(true);
+  const [queueOpen, setQueueOpen] = useState(false);
+  const upNext = queueProps ? Math.max(0, queueProps.queue.length - queueProps.index - 1) : 0;
   const idle = useRef();
   const entered = useRef(false);
 
@@ -134,7 +138,7 @@ export default function VinylStage({
     wake();
     return () => clearTimeout(idle.current);
   }, [open, isPlaying]);
-  const showChrome = chrome || !isPlaying;
+  const showChrome = chrome || !isPlaying || queueOpen;
 
   if (!open) return null;
   const pct = time.duration ? (time.current / time.duration) * 100 : 0;
@@ -207,6 +211,47 @@ export default function VinylStage({
           className="z-20 w-[var(--d)] shrink-0 landscape:ml-[calc(var(--c)*-0.45_-_var(--d)*0.06)] portrait:ml-[calc(var(--d)*0.12)] portrait:mt-[calc(var(--c)*-0.36_-_var(--d)*0.08)]"
         />
       </div>
+
+      {/* Pull-out queue: a slim tab on the left edge that slides a compact queue panel out */}
+      {queueProps && (
+        <div
+          className="absolute left-0 top-1/2 z-40 flex -translate-y-1/2 items-center transition-transform duration-500 ease-[cubic-bezier(.2,.8,.2,1)]"
+          style={{ transform: `translateY(-50%) translateX(${queueOpen ? '0' : 'calc(-1 * min(340px, 84vw))'})` }}
+        >
+          <aside
+            className="glass flex h-[min(72vh,620px)] w-[min(340px,84vw)] flex-col overflow-hidden rounded-r-[26px] border-l-0"
+            aria-label="Queue"
+            aria-hidden={!queueOpen}
+            inert={queueOpen ? undefined : ''}
+          >
+            <div className="flex items-center justify-between px-4 pb-1 pt-4">
+              <div>
+                <h3 className="font-display text-lg font-semibold leading-tight">Queue</h3>
+                <p className="text-[11px] muted">{upNext ? `${upNext} up next` : 'Nothing up next'}</p>
+              </div>
+              <button className="icon-btn" onClick={() => setQueueOpen(false)} aria-label="Close queue">
+                <IconChevron size={18} className="rotate-180" />
+              </button>
+            </div>
+            <div className="scroll-thin min-h-0 flex-1 overflow-y-auto pt-1">
+              <QueuePanel {...queueProps} compact />
+            </div>
+          </aside>
+          <button
+            onClick={() => setQueueOpen((o) => !o)}
+            className={`glass -ml-px flex h-28 w-8 flex-col items-center justify-center gap-1.5 rounded-r-2xl border-l-0 transition-opacity duration-500 ${
+              showChrome ? 'opacity-100' : 'opacity-40'
+            }`}
+            aria-expanded={queueOpen}
+            aria-label={queueOpen ? 'Hide queue' : 'Show queue'}
+            title={queueOpen ? 'Hide queue' : 'Show queue'}
+          >
+            <IconChevron size={16} className={`transition-transform duration-500 ${queueOpen ? 'rotate-180' : ''}`} />
+            <IconQueue size={14} className="opacity-70" />
+            {upNext > 0 && <span className="text-[10px] font-bold tabular-nums">{upNext}</span>}
+          </button>
+        </div>
+      )}
 
       <button
         onClick={onClose}

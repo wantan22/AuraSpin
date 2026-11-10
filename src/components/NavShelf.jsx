@@ -11,6 +11,7 @@ import {
   IconSun,
   IconTrash,
   IconX,
+  IconYouTube,
 } from './Icons.jsx';
 
 export function Brand({ className = '' }) {
@@ -127,6 +128,9 @@ export default function NavShelf({
   onToggleTheme,
   onOpenApi,
   hasApiKey,
+  onOpenYouTube,
+  ytConnected,
+  syncStatus,
   onLogout,
   onReplayGuide,
   embedded = false,
@@ -158,6 +162,16 @@ export default function NavShelf({
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-semibold">{user.name}</div>
           <div className="truncate text-[11px] muted">{user.isGuest ? 'Guest profile · this device' : user.email}</div>
+          {syncStatus && (
+            <div className="mt-0.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider muted" aria-live="polite">
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${
+                  syncStatus === 'offline' ? 'bg-amber-500' : syncStatus === 'saving' ? 'animate-pulse bg-sky-500' : 'bg-emerald-500'
+                }`}
+              />
+              {syncStatus === 'offline' ? 'Offline · will sync later' : syncStatus === 'saving' ? 'Syncing…' : 'Synced'}
+            </div>
+          )}
         </div>
       </div>
 
@@ -211,6 +225,11 @@ export default function NavShelf({
           <IconKey size={17} className="opacity-60" />
           <span className="flex-1">API Credentials</span>
           <span className={`h-2 w-2 rounded-full ${hasApiKey ? 'bg-emerald-500' : 'bg-amber-400'}`} title={hasApiKey ? 'Key saved' : 'No key'} />
+        </button>
+        <button onClick={onOpenYouTube} className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-left transition hover:bg-black/[0.04] dark:hover:bg-white/[0.05]">
+          <IconYouTube size={17} className="opacity-60" />
+          <span className="flex-1">{ytConnected ? 'YouTube connected' : 'Connect YouTube'}</span>
+          {ytConnected && <span className="h-2 w-2 rounded-full bg-emerald-500" title="Connected" />}
         </button>
         <button onClick={onReplayGuide} className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-left transition hover:bg-black/[0.04] dark:hover:bg-white/[0.05]">
           <IconCompass size={17} className="opacity-60" />

@@ -4,7 +4,7 @@
 // ever written under a shared key, so two profiles in the same browser cannot see or
 // mix each other's shelves, queues, API keys or theme.
 
-const BUCKETS = ['library', 'apikey', 'theme', 'onboarded', 'player', 'history', 'recs'];
+const BUCKETS = ['library', 'apikey', 'theme', 'onboarded', 'player', 'history', 'recs', 'oauth'];
 
 export const scopedKey = (bucket, uid) => {
   if (!uid) throw new Error('scopedKey: a user id is required');
@@ -39,14 +39,23 @@ export function removeKey(key) {
 }
 
 /** A store bound to a single user. All reads/writes are forced through that user's keys. */
-export function createUserStore(uid) {
+export function createUserStore(uid, { onWrite } = {}) {
   return Object.freeze({
     uid,
     get: (bucket, fallback = null) => readJSON(scopedKey(bucket, uid), fallback),
-    set: (bucket, value) => writeJSON(scopedKey(bucket, uid), value),
-    remove: (bucket) => removeKey(scopedKey(bucket, uid)),
+    set: (bucket, value) => {
+      const ok = writeJSON(scopedKey(bucket, uid), value);
+      onWrite?.(bucket, value);
+      return ok;
+    },
+    remove: (bucket) => {
+      removeKey(scopedKey(bucket, uid));
+      onWrite?.(bucket, null);
+    },
   });
 }
+
+export const BUCKET_NAMES = BUCKETS;
 
 export const newId = () =>
   crypto.randomUUID
